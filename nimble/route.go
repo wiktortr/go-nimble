@@ -5,7 +5,6 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
-	"log"
 )
 
 type MsgProcessor func(message *Message) error
@@ -13,79 +12,104 @@ type MsgProcessor func(message *Message) error
 type Route struct {
 	id           string
 	Name         string
+	From         string
 	Concurrency  int
 	Ctx          context.Context
 	cancel       context.CancelFunc
-	From         string
 	dependencies []string
-	steps        []MsgProcessor
 	components   map[string]ComponentImpl
 	Registry     *Registry
+	mainBlock    Block
+	currentBlock Block
+	compiledFunc MsgProcessor
+}
+
+func NewRoute(name string) *Route {
+	mainBlock := &LinearBlock{nil, []Block{}}
+	return &Route{
+		id:           uuid.NewString(),
+		Name:         name,
+		Concurrency:  1,
+		dependencies: []string{},
+		components:   make(map[string]ComponentImpl),
+		mainBlock:    mainBlock,
+		currentBlock: mainBlock,
+	}
 }
 
 func From(uri string) *Route {
-	return &Route{
-		id:           uuid.NewString(),
-		Name:         uri,
-		From:         uri,
-		Concurrency:  1,
-		dependencies: []string{uri},
-		steps:        []MsgProcessor{},
-		components:   make(map[string]ComponentImpl),
-	}
-}
-
-func (route *Route) Process(process MsgProcessor) *Route {
-	route.steps = append(route.steps, process)
-	return route
-}
-
-func (route *Route) To(uri string) *Route {
+	route := NewRoute(uri)
+	route.From = uri
 	route.dependencies = append(route.dependencies, uri)
-	route.steps = append(route.steps, func(message *Message) error {
-		return route.components[uri].Process(message)
-	})
 	return route
 }
 
-func (route *Route) Log(logMsg string) *Route {
-	route.steps = append(route.steps, func(message *Message) error {
-		route.Registry.logger.Info(logMsg, zap.Any("msg", message))
-		return nil
-	})
-	return route
+func (m *Route) To(uri string) *Route {
+	m.dependencies = append(m.dependencies, uri)
+	err := m.currentBlock.AddBlock(&ComponentBlock{uri})
+	if err != nil {
+		m.Registry.logger.Error("Failed to add block", zap.Error(err))
+	}
+	return m
 }
 
-func (route *Route) Start() {
+func (m *Route) Log(logMsg string) *Route {
+	err := m.currentBlock.AddBlock(&FunctionalBlock{
+		func(message *Message) error {
+			m.Registry.logger.Info(logMsg, zap.Any("msg", message))
+			return nil
+		},
+	})
+	if err != nil {
+		m.Registry.logger.Error("Failed to add block", zap.Error(err))
+	}
+	return m
+}
+
+func (m *Route) End() *Route {
+	m.currentBlock = m.currentBlock.GetParent()
+	return m
+}
+
+func (m *Route) Run(msg *Message) error {
+	if m.compiledFunc == nil {
+		var err error
+		m.compiledFunc, err = m.mainBlock.Compile(m.Registry)
+		if err != nil {
+			return err
+		}
+	}
+	return m.compiledFunc(msg)
+}
+
+func (m *Route) Start() {
 	ctx, cancel := context.WithCancel(context.Background())
-	route.Ctx = ctx
-	route.cancel = cancel
+	m.Ctx = ctx
+	m.cancel = cancel
 
-	for i := 0; i < route.Concurrency; i++ {
-		go route.handle()
+	for i := 0; i < m.Concurrency; i++ {
+		go m.handle()
 	}
 }
 
-func (route *Route) handle() {
-	fromComp := route.components[route.From]
+func (m *Route) handle() {
+	fromComp := m.components[m.From]
 
 	for {
 		select {
-		case <-route.Ctx.Done():
+		case <-m.Ctx.Done():
 			return
 		case msg := <-fromComp.Inbound():
-			for _, step := range route.steps {
-				err := step(msg)
-				if err != nil {
-					log.Println(err)
-				}
+			err := m.Run(msg)
+			if err != nil {
+				m.Registry.logger.Error(err.Error(), zap.String("route", m.Name), zap.Any("msg", msg))
 			}
 		}
 	}
 }
 
-func (route *Route) Stop() {
-	route.cancel()
+func (m *Route) Stop() {
+	m.cancel()
 }
 
 func AsRoute(f any) fx.Option {
