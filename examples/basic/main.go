@@ -8,20 +8,20 @@ import (
 	"go.uber.org/zap"
 )
 
-func RouteA() *nimble.Route {
+func routeA() *nimble.Route {
 	return nimble.
-		From("timer:test?interval=1s").
+		From("timer://test?interval=1s").
 		Process(func(message *nimble.Message) error {
 			message.Payload = "test"
 			return nil
 		}).
 		Log("Message from A").
-		To("seda:test")
+		To("seda://test")
 }
 
-func RouteB() *nimble.Route {
+func routeB() *nimble.Route {
 	return nimble.
-		From("seda:test").
+		From("seda:test?buffSize=2").
 		Log("Message from B")
 }
 
@@ -32,8 +32,8 @@ func main() {
 			return &fxevent.ZapLogger{Logger: log}
 		}),
 		components.Core,
-		nimble.AsRoute(RouteA),
-		nimble.AsRoute(RouteB),
+		nimble.AsRoute(routeA),
+		nimble.AsRoute(routeB),
 		nimble.Module,
 	).Run()
 }

@@ -14,7 +14,7 @@ func (m *FilterBlock) AddBlock(block Block) error {
 	return m.InnerBlock.AddBlock(block)
 }
 
-func (m *FilterBlock) Compile(reg *Registry) (MsgProcessor, error) {
+func (m *FilterBlock) Compile(reg Registry) (MsgProcessor, error) {
 	comp, err := m.InnerBlock.Compile(reg)
 	if err != nil {
 		return nil, err

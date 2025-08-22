@@ -11,7 +11,7 @@ type ComponentImpl interface {
 
 type Component interface {
 	Key() string
-	Instantiate(params *ComponentParams) (ComponentImpl, error)
+	Instantiate(reg Registry, params *ComponentParams) (ComponentImpl, error)
 }
 
 func AsComponent(f any) fx.Option {

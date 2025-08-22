@@ -12,12 +12,9 @@ func (p *Seda) Key() string {
 	return "seda"
 }
 
-func (p *Seda) Instantiate(params *nimble.ComponentParams) (nimble.ComponentImpl, error) {
+func (p *Seda) Instantiate(_ nimble.Registry, params *nimble.ComponentParams) (nimble.ComponentImpl, error) {
 
-	buffSize, err := params.IntDef("buffSize", 100)
-	if err != nil {
-		return nil, err
-	}
+	buffSize := params.IntDef("buffSize", 100)
 
 	return &sedaImpl{make(chan *nimble.Message, buffSize)}, nil
 }

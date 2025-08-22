@@ -13,10 +13,10 @@ func graterThan5(msg *nimble.Message) (bool, error) {
 	return msg.Payload.(int) > 5, nil
 }
 
-func RouteA() *nimble.Route {
+func routeA() *nimble.Route {
 	r := rand.New(rand.NewSource(99))
 	return nimble.
-		From("timer:test?interval=1s").
+		From("timer://test?interval=1s").
 		Process(func(message *nimble.Message) error {
 			message.Payload = r.Intn(10)
 			return nil
@@ -35,7 +35,7 @@ func main() {
 			return &fxevent.ZapLogger{Logger: log}
 		}),
 		components.Core,
-		nimble.AsRoute(RouteA),
+		nimble.AsRoute(routeA),
 		nimble.Module,
 	).Run()
 }

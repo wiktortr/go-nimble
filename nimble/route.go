@@ -18,7 +18,7 @@ type Route struct {
 	cancel       context.CancelFunc
 	dependencies []string
 	components   map[string]ComponentImpl
-	Registry     *Registry
+	Registry     Registry
 	mainBlock    Block
 	currentBlock Block
 	compiledFunc MsgProcessor
@@ -48,7 +48,7 @@ func (m *Route) To(uri string) *Route {
 	m.dependencies = append(m.dependencies, uri)
 	err := m.currentBlock.AddBlock(&ComponentBlock{uri})
 	if err != nil {
-		m.Registry.logger.Error("Failed to add block", zap.Error(err))
+		m.Registry.Logger().Error("Failed to add block", zap.Error(err))
 	}
 	return m
 }
@@ -56,12 +56,12 @@ func (m *Route) To(uri string) *Route {
 func (m *Route) Log(logMsg string) *Route {
 	err := m.currentBlock.AddBlock(&FunctionalBlock{
 		func(message *Message) error {
-			m.Registry.logger.Info(logMsg, zap.Any("msg", message))
+			m.Registry.Logger().Info(logMsg, zap.Any("msg", message))
 			return nil
 		},
 	})
 	if err != nil {
-		m.Registry.logger.Error("Failed to add block", zap.Error(err))
+		m.Registry.Logger().Error("Failed to add block", zap.Error(err))
 	}
 	return m
 }
@@ -102,7 +102,7 @@ func (m *Route) handle() {
 		case msg := <-fromComp.Inbound():
 			err := m.Run(msg)
 			if err != nil {
-				m.Registry.logger.Error(err.Error(), zap.String("route", m.Name), zap.Any("msg", msg))
+				m.Registry.Logger().Error(err.Error(), zap.String("route", m.Name), zap.Any("msg", msg))
 			}
 		}
 	}

@@ -12,7 +12,7 @@ func (p *Timer) Key() string {
 	return "timer"
 }
 
-func (p *Timer) Instantiate(params *nimble.ComponentParams) (nimble.ComponentImpl, error) {
+func (p *Timer) Instantiate(_ nimble.Registry, params *nimble.ComponentParams) (nimble.ComponentImpl, error) {
 	duration, err := params.Duration("interval")
 	if err != nil {
 		return nil, err

@@ -19,10 +19,15 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.20'
+        go-version: '1.24.3'
 
     - name: Build
       run: go build -v ./...
 
     - name: Test
-      run: go test -v ./...
+      run: go test -v ./... -json > report.json
+
+    - name: Report
+      uses: becheran/go-testreport@main
+      with:
+        input: report.json

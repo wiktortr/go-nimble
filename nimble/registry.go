@@ -5,23 +5,30 @@ import (
 	"errors"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
-	"log"
 )
 
-type Registry struct {
+type Registry interface {
+	Logger() *zap.Logger
+	Instantiate(uri string) (ComponentImpl, error)
+	RegisterRoute(route *Route) error
+	Start() error
+	Stop() error
+}
+
+type RegistryImpl struct {
 	ComponentMap map[string]Component
 	InstancesMap map[string]ComponentImpl
 	RoutesMap    map[string]*Route
 	logger       *zap.Logger
 }
 
-func NewRegistry(components []Component, routes []*Route, logger *zap.Logger) (*Registry, error) {
+func NewRegistry(components []Component, routes []*Route, logger *zap.Logger) (Registry, error) {
 	compMap := make(map[string]Component)
 	for _, component := range components {
 		compMap[component.Key()] = component
 	}
 
-	reg := &Registry{
+	reg := &RegistryImpl{
 		ComponentMap: compMap,
 		InstancesMap: make(map[string]ComponentImpl),
 		RoutesMap:    make(map[string]*Route),
@@ -38,15 +45,22 @@ func NewRegistry(components []Component, routes []*Route, logger *zap.Logger) (*
 	return reg, nil
 }
 
-func (m *Registry) Instantiate(uri string) (ComponentImpl, error) {
-	instance, ok := m.InstancesMap[uri]
-	if ok {
-		return instance, nil
-	}
+func (m *RegistryImpl) Logger() *zap.Logger {
+	return m.logger
+}
 
+func (m *RegistryImpl) Instantiate(uri string) (ComponentImpl, error) {
 	params, err := ParseParams(uri)
 	if err != nil {
 		return nil, errors.New("Invalid URI: " + uri)
+	}
+
+	id := params.GetId()
+	m.logger.Info("Instantiate", zap.String("id", id), zap.String("uri", uri))
+
+	instance, ok := m.InstancesMap[id]
+	if ok {
+		return instance, nil
 	}
 
 	comp, ok := m.ComponentMap[params.Key]
@@ -54,18 +68,18 @@ func (m *Registry) Instantiate(uri string) (ComponentImpl, error) {
 		return nil, errors.New("Cannot find Component: " + params.Key)
 	}
 
-	inst, err := comp.Instantiate(params)
+	inst, err := comp.Instantiate(m, params)
 	if err != nil {
 		return nil, errors.New("Cannot Instantiate " + params.Key + ": " + err.Error())
 	}
 
-	m.InstancesMap[uri] = inst
+	m.InstancesMap[id] = inst
 
 	return inst, nil
 
 }
 
-func (m *Registry) RegisterRoute(route *Route) error {
+func (m *RegistryImpl) RegisterRoute(route *Route) error {
 	route.Registry = m
 	m.RoutesMap[route.id] = route
 
@@ -80,26 +94,38 @@ func (m *Registry) RegisterRoute(route *Route) error {
 	return nil
 }
 
-func (m *Registry) Start() error {
-	m.logger.Info("Register Starting")
+func (m *RegistryImpl) Start() error {
+	m.logger.Info("Register Starting...")
 
 	for _, route := range m.RoutesMap {
+		m.logger.Info("Starting Route", zap.String("id", route.id), zap.String("name", route.Name))
 		route.Start()
-		m.logger.Info("Started Route", zap.String("id", route.id), zap.String("name", route.Name))
 	}
 
 	for uri, component := range m.InstancesMap {
-		go component.Start()
-		m.logger.Info("Started Component", zap.String("id", uri))
-
+		m.logger.Info("Starting Component...", zap.String("id", uri))
+		component.Start()
 	}
 
 	m.logger.Info("Register Started")
 	return nil
 }
 
-func (m *Registry) Stop() error {
-	log.Println("Register Stop")
+func (m *RegistryImpl) Stop() error {
+	m.logger.Info("Register Stopping...")
+
+	for uri, component := range m.InstancesMap {
+		m.logger.Info("Stopping Component...", zap.String("id", uri))
+		component.Stop()
+	}
+
+	for _, route := range m.RoutesMap {
+		m.logger.Info("Stopping Route...", zap.String("id", route.id), zap.String("name", route.Name))
+		route.Stop()
+	}
+
+	m.logger.Info("Register Stopped")
+
 	return nil
 }
 
@@ -111,7 +137,7 @@ var Module = fx.Module(
 			fx.ParamTags(`group:"nimble-components"`, `group:"nimble-routes"`),
 		),
 	),
-	fx.Invoke(func(lc fx.Lifecycle, reg *Registry) error {
+	fx.Invoke(func(lc fx.Lifecycle, reg Registry) error {
 		lc.Append(fx.Hook{
 			OnStop: func(ctx context.Context) error {
 				return reg.Stop()

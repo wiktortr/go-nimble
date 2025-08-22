@@ -12,7 +12,7 @@ func (m *Route) Filter(filter FilterFunc) *Route {
 	}
 	err := m.currentBlock.AddBlock(block)
 	if err != nil {
-		m.Registry.logger.Error("Failed to add block", zap.Error(err), zap.String("route", m.Name))
+		m.Registry.Logger().Error("Failed to add block", zap.Error(err), zap.String("route", m.Name))
 	}
 	m.currentBlock = block
 	return m

@@ -10,10 +10,10 @@ func (m *FunctionalBlock) GetParent() Block {
 	return nil
 }
 
-func (m *FunctionalBlock) AddBlock(block Block) error {
+func (m *FunctionalBlock) AddBlock(_ Block) error {
 	return errors.New("cannot add block to FunctionalBlock")
 }
 
-func (m *FunctionalBlock) Compile(_ *Registry) (MsgProcessor, error) {
+func (m *FunctionalBlock) Compile(_ Registry) (MsgProcessor, error) {
 	return m.Function, nil
 }

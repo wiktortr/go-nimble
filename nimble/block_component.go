@@ -14,7 +14,7 @@ func (m *ComponentBlock) AddBlock(_ Block) error {
 	return errors.New("cannot add block to ComponentBlock")
 }
 
-func (m *ComponentBlock) Compile(reg *Registry) (MsgProcessor, error) {
+func (m *ComponentBlock) Compile(reg Registry) (MsgProcessor, error) {
 	instantiate, err := reg.Instantiate(m.Uri)
 	if err != nil {
 		return nil, err

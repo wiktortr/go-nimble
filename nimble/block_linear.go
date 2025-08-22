@@ -14,7 +14,7 @@ func (m *LinearBlock) AddBlock(block Block) error {
 	return nil
 }
 
-func (m *LinearBlock) Compile(reg *Registry) (MsgProcessor, error) {
+func (m *LinearBlock) Compile(reg Registry) (MsgProcessor, error) {
 	compiled := func(msg *Message) error {
 		return nil
 	}
